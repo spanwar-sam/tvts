@@ -4,7 +4,7 @@ CFLAGS = -Wall -Werror -O2 -I./include
 LDFLAGS = 
 
 # Source directories
-DRM_SRC = $(wildcard src/*.c)
+DRM_SRC = $(wildcard src/drm/*.c)
 AUDIO_SRC = $(wildcard src/audio/*.c)
 VIDEO_SRC = $(wildcard src/video/*.c)
 REPORT_SRC = $(wildcard src/report/*.c)
