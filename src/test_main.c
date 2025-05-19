@@ -28,6 +28,7 @@
 #include "tizen_drm_test.h"
 #include "audio/tizen_audio_test.h"
 #include "video/tizen_video_test.h"
+#include "usb/tizen_usb_test.h"
 #include "report/test_report.h"
 
 // Subsystem types
@@ -35,11 +36,13 @@ typedef enum {
     SUBSYSTEM_DRM,
     SUBSYSTEM_AUDIO,
     SUBSYSTEM_VIDEO,
+    SUBSYSTEM_USB,
     SUBSYSTEM_ALL
 } subsystem_type_t;
 
 // Command line options
 typedef struct {
+    // Common options
     subsystem_type_t subsystem;
     char *test_name;
     uint32_t device_index;
@@ -49,10 +52,18 @@ typedef struct {
     uint32_t iterations;
     bool verbose;
     bool help;
+    
+    // Reporting options
     report_format_t report_format;
     char report_file[256];
     bool report_append;
     bool no_report;
+    
+    // USB test options
+    const char *usb_device_path;
+    const char *usb_test_device_class;
+    uint16_t usb_vendor_id;
+    uint16_t usb_product_id;
 } cmd_options_t;
 
 // Global report handle
@@ -104,7 +115,7 @@ void print_video_metrics(const char *test_name, uint32_t fps) {
 void print_usage(const char *program_name) {
     printf("Usage: %s [options]\n", program_name);
     printf("Options:\n");
-    printf("  -s, --subsystem=SUBSYSTEM   Subsystem to test (drm, audio, video, all)\n");
+    printf("  -s, --subsystem=SUBSYSTEM   Subsystem to test (drm, audio, video, usb, all)\n");
     printf("  -t, --test=TEST_NAME       Specific test to run\n");
     printf("  -d, --device=INDEX         Device index to test\n");
     printf("  -w, --width=WIDTH          Width for video/DRM tests\n");
@@ -116,7 +127,12 @@ void print_usage(const char *program_name) {
     printf("  --report-file=FILE         Report file path\n");
     printf("  --report-append            Append to existing report file\n");
     printf("  --no-report                Disable report generation\n");
-    printf("  --help                     Show this help message\n");
+    printf("  --help                     Show this help message\n\n");
+    printf("USB Test Options:\n");
+    printf("  --usb-device-path PATH     Path to USB device (default: /dev/sda)\n");
+    printf("  --usb-test-device-class CLASS  Test specific USB device class (msc, hid, audio, wireless)\n");
+    printf("  --usb-vendor-id ID         Filter by USB vendor ID (hex)\n");
+    printf("  --usb-product-id ID        Filter by USB product ID (hex)\n");
 }
 
 // Function to parse command line options
@@ -133,7 +149,11 @@ cmd_options_t parse_options(int argc, char *argv[]) {
         .help = false,
         .report_format = REPORT_FORMAT_TEXT,
         .report_append = false,
-        .no_report = false
+        .no_report = false,
+        .usb_device_path = "/dev/sda",
+        .usb_test_device_class = NULL,
+        .usb_vendor_id = 0,
+        .usb_product_id = 0
     };
     
     // Set default report file
@@ -153,6 +173,10 @@ cmd_options_t parse_options(int argc, char *argv[]) {
         {"report-append", no_argument, 0, 0},
         {"no-report", no_argument, 0, 0},
         {"help", no_argument, 0, 0},
+        {"usb-device-path", required_argument, 0, 0},
+        {"usb-test-device-class", required_argument, 0, 0},
+        {"usb-vendor-id", required_argument, 0, 0},
+        {"usb-product-id", required_argument, 0, 0},
         {0, 0, 0, 0}
     };
 
@@ -184,6 +208,14 @@ cmd_options_t parse_options(int argc, char *argv[]) {
                     options.report_append = true;
                 } else if (strcmp(long_options[option_index].name, "no-report") == 0) {
                     options.no_report = true;
+                } else if (strcmp(long_options[option_index].name, "usb-device-path") == 0) {
+                    options.usb_device_path = optarg;
+                } else if (strcmp(long_options[option_index].name, "usb-test-device-class") == 0) {
+                    options.usb_test_device_class = optarg;
+                } else if (strcmp(long_options[option_index].name, "usb-vendor-id") == 0) {
+                    options.usb_vendor_id = (uint16_t)strtoul(optarg, NULL, 16);
+                } else if (strcmp(long_options[option_index].name, "usb-product-id") == 0) {
+                    options.usb_product_id = (uint16_t)strtoul(optarg, NULL, 16);
                 }
                 break;
             case 's':
@@ -193,6 +225,8 @@ cmd_options_t parse_options(int argc, char *argv[]) {
                     options.subsystem = SUBSYSTEM_AUDIO;
                 } else if (strcmp(optarg, "video") == 0) {
                     options.subsystem = SUBSYSTEM_VIDEO;
+                } else if (strcmp(optarg, "usb") == 0) {
+                    options.subsystem = SUBSYSTEM_USB;
                 } else if (strcmp(optarg, "all") == 0) {
                     options.subsystem = SUBSYSTEM_ALL;
                 } else {
@@ -479,189 +513,135 @@ void run_audio_tests(const cmd_options_t *options) {
         print_test_result("All Audio Features", test_all_audio_features(options->device_index, &audio_config));
     }
 
+// Function to run video tests
+void run_video_tests(const cmd_options_t *options)
+{
+    if (!options) return;
+    
+    printf("\n=== Starting Video Tests ===\n");
+    
+    // Initialize video test
+    if (!tizen_video_test_init()) {
+        fprintf(stderr, "Failed to initialize video test\n");
+        return;
+    }
+    
+    // Run tests based on options
+    if (options->test_name == NULL || strcmp(options->test_name, "all") == 0 ||
+        strcmp(options->test_name, "capture") == 0) {
+        printf("\n[TEST] Video Capture...");
+        bool result = tizen_video_test_capture(options->width, options->height, options->iterations);
+        print_test_result("Video Capture Test", result);
+    }
+    
     // Cleanup
-    cleanup_audio_test_framework();
+    tizen_video_test_cleanup();
 }
 
-// Function to run video tests
-void run_video_tests(const cmd_options_t *options) {
-    printf("\n===== Running Video Tests =====\n\n");
-
-    if (!init_video_test_framework()) {
-        fprintf(stderr, "Failed to initialize video test framework\n");
+// Function to run USB tests
+void run_usb_tests(const cmd_options_t *options)
+{
+    if (!options) return;
+    
+    printf("\n=== Starting USB Tests ===\n");
+    
+    // Initialize USB test framework
+    if (!usb_test_init()) {
+        fprintf(stderr, "Failed to initialize USB test framework\n");
         return;
     }
-
-    // Test configuration
-    video_test_config_t video_config = {
-        .width = options->width,
-        .height = options->height,
-        .format = VIDEO_FORMAT_YUYV,
-        .framerate = 30,
-        .bitrate = 5000000,
-        .duration = 1,
-        .iterations = options->iterations,
-        .timeout = 5000
+    
+    // Configure USB tests based on command line options
+    usb_test_config_t config = {
+        // Enable all test categories by default unless a specific class is specified
+        .run_mass_storage_tests = (options->usb_test_device_class == NULL || 
+                                 strcmp(options->usb_test_device_class, "msc") == 0),
+        .run_hid_tests = (options->usb_test_device_class == NULL || 
+                        strcmp(options->usb_test_device_class, "hid") == 0),
+        .run_audio_tests = (options->usb_test_device_class == NULL || 
+                          strcmp(options->usb_test_device_class, "audio") == 0),
+        .run_wireless_tests = (options->usb_test_device_class == NULL || 
+                             strcmp(options->usb_test_device_class, "wireless") == 0),
+        .test_device_path = options->usb_device_path,
+        .vendor_id = options->usb_vendor_id,
+        .product_id = options->usb_product_id
     };
-
-    // Get device count
-    uint32_t device_count = get_video_device_count(VIDEO_DEVICE_MAX);
-    printf("Found %u video devices\n", device_count);
-
-    if (device_count == 0) {
-        fprintf(stderr, "No video devices found\n");
-        cleanup_video_test_framework();
-        return;
-    }
-
-    // Check device index
-    if (options->device_index >= device_count) {
-        fprintf(stderr, "Invalid device index: %u (max %u)\n", options->device_index, device_count - 1);
-        cleanup_video_test_framework();
-        return;
-    }
-
-    // Get device info
-    video_device_info_t device_info;
-    if (!get_video_device_info(options->device_index, &device_info)) {
-        fprintf(stderr, "Failed to get device info for device %u\n", options->device_index);
-        cleanup_video_test_framework();
-        return;
-    }
-
-    printf("Testing device: %s\n", device_info.name);
-    printf("Device type: %s\n", video_device_type_to_string(device_info.type));
-
-    if (options->test_name == NULL || strcmp(options->test_name, "capture") == 0) {
-        // Capture Tests
-        if (device_info.type == VIDEO_DEVICE_CAMERA) {
-            print_test_result("Video Capture", test_video_capture(options->device_index, &video_config));
-        } else {
-            printf("Skipping capture test (device is not a camera)\n");
+    
+    if (options->verbose) {
+        printf("USB Test Configuration:\n");
+        printf("  Device Path: %s\n", config.test_device_path);
+        if (options->usb_test_device_class) {
+            printf("  Test Class: %s\n", options->usb_test_device_class);
+        }
+        if (options->usb_vendor_id) {
+            printf("  Vendor ID: 0x%04x\n", options->usb_vendor_id);
+        }
+        if (options->usb_product_id) {
+            printf("  Product ID: 0x%04x\n", options->usb_product_id);
         }
     }
-
-    if (options->test_name == NULL || strcmp(options->test_name, "encoding") == 0) {
-        // Encoding Tests
-        if (device_info.type == VIDEO_DEVICE_ENCODER) {
-            print_test_result("Video Encoding", test_video_encoding(options->device_index, &video_config));
-        } else {
-            printf("Skipping encoding test (device is not an encoder)\n");
-        }
-    }
-
-    if (options->test_name == NULL || strcmp(options->test_name, "decoding") == 0) {
-        // Decoding Tests
-        if (device_info.type == VIDEO_DEVICE_DECODER) {
-            print_test_result("Video Decoding", test_video_decoding(options->device_index, &video_config));
-        } else {
-            printf("Skipping decoding test (device is not a decoder)\n");
-        }
-    }
-
-    if (options->test_name == NULL || strcmp(options->test_name, "format") == 0) {
-        // Format Support Tests
-        print_test_result("Video Format Support", test_video_format_support(options->device_index, &video_config));
-    }
-
-    if (options->test_name == NULL || strcmp(options->test_name, "performance") == 0) {
-        // Performance Tests
-        uint32_t avg_fps;
-        if (test_video_capture_performance(options->device_index, &video_config, &avg_fps)) {
-            print_video_metrics("Video Capture", avg_fps);
-        } else {
-            printf("Performance test failed\n");
-        }
-    }
-
-    if (options->test_name == NULL || strcmp(options->test_name, "all") == 0) {
-        // Comprehensive Test
-        print_test_result("All Video Features", test_all_video_features(options->device_index, &video_config));
-    }
-
+    
+    // Run USB tests
+    int failed_tests = usb_test_run_all(&config);
+    printf("\n=== USB Tests Completed: %d tests failed ===\n", failed_tests);
+    
     // Cleanup
-    cleanup_video_test_framework();
+    usb_test_cleanup();
 }
 
 int main(int argc, char *argv[]) {
     // Parse command line options
     cmd_options_t options = parse_options(argc, argv);
-
-    // Show help if requested
+    
+    // Handle help option
     if (options.help) {
         print_usage(argv[0]);
         return 0;
     }
-
-    printf("Tizen Vendor Test Suite\n");
-    printf("========================\n\n");
-
-    // Initialize report system if enabled
+    
+    // Initialize test report if enabled
     if (!options.no_report) {
-        report_config_t report_config;
-        memset(&report_config, 0, sizeof(report_config));
+        char title[256];
+        snprintf(title, sizeof(title), "Tizen Vendor Test Suite - %s", 
+                get_subsystem_name(options.subsystem));
+                
+        report_config_t report_config = {
+            .format = options.report_format,
+            .filename = options.report_file,
+            .append = options.report_append
+        };
         
-        strncpy(report_config.report_file, options.report_file, sizeof(report_config.report_file) - 1);
-        report_config.format = options.report_format;
-        report_config.append = options.report_append;
-        report_config.include_timestamp = true;
-        report_config.include_system_info = true;
-        report_config.include_performance_metrics = true;
-        report_config.min_level = REPORT_LEVEL_INFO;
-        
-        char title[128];
-        char description[256];
-        
-        // Create report title and description based on options
-        switch (options.subsystem) {
-            case SUBSYSTEM_DRM:
-                sprintf(title, "Tizen DRM Test Report");
-                break;
-            case SUBSYSTEM_AUDIO:
-                sprintf(title, "Tizen Audio Test Report");
-                break;
-            case SUBSYSTEM_VIDEO:
-                sprintf(title, "Tizen Video Test Report");
-                break;
-            case SUBSYSTEM_ALL:
-                sprintf(title, "Tizen Vendor Test Suite Report");
-                break;
-        }
-        
-        sprintf(description, "Test run on %s with %u iterations", 
-                options.test_name ? options.test_name : "all tests", 
-                options.iterations);
-        
-        g_report = report_create(title, description, &report_config);
-        if (!g_report) {
-            fprintf(stderr, "Failed to create test report\n");
-        } else if (options.verbose) {
-            printf("Report will be generated in %s format to %s\n", 
-                   report_format_to_string(options.report_format), 
-                   options.report_file);
-        }
+        g_report = report_create(title, "Automated test execution results", &report_config);
     }
-
-    if (options.verbose) {
-        printf("Verbose mode enabled\n");
-    }
-
-    // Run tests based on selected subsystem
+    
+    // Run tests based on subsystem
     switch (options.subsystem) {
         case SUBSYSTEM_DRM:
             run_drm_tests(&options);
             break;
+            
         case SUBSYSTEM_AUDIO:
             run_audio_tests(&options);
             break;
+            
         case SUBSYSTEM_VIDEO:
             run_video_tests(&options);
             break;
+            
+        case SUBSYSTEM_USB:
+            run_usb_tests(&options);
+            break;
+            
         case SUBSYSTEM_ALL:
             run_drm_tests(&options);
             run_audio_tests(&options);
             run_video_tests(&options);
+            run_usb_tests(&options);
             break;
+            
+        default:
+            fprintf(stderr, "Unknown subsystem\n");
+            return 1;
     }
 
     printf("\nTests completed\n");

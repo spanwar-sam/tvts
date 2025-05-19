@@ -7,6 +7,7 @@ LDFLAGS =
 DRM_SRC = $(wildcard src/drm/*.c)
 AUDIO_SRC = $(wildcard src/audio/*.c)
 VIDEO_SRC = $(wildcard src/video/*.c)
+USB_SRC = $(wildcard src/usb/*.c)
 REPORT_SRC = $(wildcard src/report/*.c)
 MAIN_SRC = src/test_main.c
 
@@ -14,11 +15,12 @@ MAIN_SRC = src/test_main.c
 DRM_OBJ = $(DRM_SRC:.c=.o)
 AUDIO_OBJ = $(AUDIO_SRC:.c=.o)
 VIDEO_OBJ = $(VIDEO_SRC:.c=.o)
+USB_OBJ = $(USB_SRC:.c=.o)
 REPORT_OBJ = $(REPORT_SRC:.c=.o)
 MAIN_OBJ = $(MAIN_SRC:.c=.o)
 
 # Header files
-HEADERS = $(wildcard include/*.h) $(wildcard include/audio/*.h) $(wildcard include/video/*.h) $(wildcard include/report/*.h)
+HEADERS = $(wildcard include/*.h) $(wildcard include/audio/*.h) $(wildcard include/video/*.h) $(wildcard include/usb/*.h) $(wildcard include/report/*.h)
 
 # Subsystem flags
 DRM_CFLAGS = -D_ENABLE_DRM
@@ -29,6 +31,9 @@ AUDIO_LDFLAGS = -lasound
 
 VIDEO_CFLAGS = -D_ENABLE_VIDEO
 VIDEO_LDFLAGS = -lv4l2
+
+USB_CFLAGS = -D_ENABLE_USB -D_GNU_SOURCE
+USB_LDFLAGS = -lusb-1.0 -lscsi -lsgutils2
 
 # Target-specific variables
 ifeq ($(TARGET),linux)
@@ -68,10 +73,14 @@ else ifeq ($(SUBSYSTEMS),video)
     ENABLED_CFLAGS = $(VIDEO_CFLAGS) $(REPORT_CFLAGS)
     ENABLED_LDFLAGS = $(VIDEO_LDFLAGS) $(REPORT_LDFLAGS)
     OBJECTS = $(VIDEO_OBJ) $(REPORT_OBJ) $(MAIN_OBJ)
+else ifeq ($(SUBSYSTEMS),usb)
+    ENABLED_CFLAGS = $(USB_CFLAGS) $(REPORT_CFLAGS)
+    ENABLED_LDFLAGS = $(USB_LDFLAGS) $(REPORT_LDFLAGS)
+    OBJECTS = $(USB_OBJ) $(REPORT_OBJ) $(MAIN_OBJ)
 else
-    ENABLED_CFLAGS = $(DRM_CFLAGS) $(AUDIO_CFLAGS) $(VIDEO_CFLAGS) $(REPORT_CFLAGS)
-    ENABLED_LDFLAGS = $(DRM_LDFLAGS) $(AUDIO_LDFLAGS) $(VIDEO_LDFLAGS) $(REPORT_LDFLAGS)
-    OBJECTS = $(DRM_OBJ) $(AUDIO_OBJ) $(VIDEO_OBJ) $(REPORT_OBJ) $(MAIN_OBJ)
+    ENABLED_CFLAGS = $(DRM_CFLAGS) $(AUDIO_CFLAGS) $(VIDEO_CFLAGS) $(USB_CFLAGS) $(REPORT_CFLAGS)
+    ENABLED_LDFLAGS = $(DRM_LDFLAGS) $(AUDIO_LDFLAGS) $(VIDEO_LDFLAGS) $(USB_LDFLAGS) $(REPORT_LDFLAGS)
+    OBJECTS = $(DRM_OBJ) $(AUDIO_OBJ) $(VIDEO_OBJ) $(USB_OBJ) $(REPORT_OBJ) $(MAIN_OBJ)
 endif
 
 # Default target is linux
