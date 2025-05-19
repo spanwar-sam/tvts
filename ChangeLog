@@ -1,0 +1,14 @@
+2024-05-17  Sumit
+
+	* Initial release of Tizen DRM Test Suite
+	* Added comprehensive DRM feature tests
+	* Implemented buffer sharing tests
+	* Added format conversion tests
+	* Added plane configuration tests
+	* Added CRTC tests
+	* Added connector tests
+	* Added mode setting tests
+	* Added synchronization tests
+	* Added color management tests
+	* Added performance benchmarks
+	* Added cross-device sharing tests

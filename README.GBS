@@ -1,0 +1,76 @@
+# Tizen DRM Test Suite - GBS Build Instructions
+
+This document provides instructions for building the Tizen DRM Test Suite using Tizen's Graphical Build System (GBS).
+
+## Prerequisites
+
+Before building, ensure you have:
+
+1. Tizen SDK installed
+2. GBS environment set up
+3. Tizen build tools installed
+
+## Build Steps
+
+1. Create a source tarball:
+```bash
+make dist
+```
+
+2. Create the project directory in GBS:
+```bash
+gbs build --create-project
+```
+
+3. Copy the spec file and source tarball:
+```bash
+cp tizen_drm_test_suite.spec ~/tizen-workspace/tizen-drm-test-suite/
+cp tizen-drm-test-suite-1.0.0.tar.gz ~/tizen-workspace/tizen-drm-test-suite/
+```
+
+4. Build the package:
+```bash
+gbs build --include-all --arch armv7l
+```
+
+## Build Configuration
+
+The spec file includes:
+- Main package with test suite binary
+- Development package with headers
+- Build dependencies
+- Installation paths
+
+## Package Contents
+
+The package includes:
+- Test suite binary (`test_suite`)
+- Development headers (`tizen_drm_test.h`)
+- Documentation
+- License files
+
+## Cross-Compilation
+
+The package is configured for cross-compilation to armv7l architecture. The build system will automatically use the appropriate cross-compilation toolchain.
+
+## Installation
+
+After building, install the package using:
+```bash
+gbs install --arch armv7l
+```
+
+## Testing
+
+Run the test suite using:
+```bash
+./test_suite
+```
+
+## Troubleshooting
+
+If you encounter build errors:
+1. Check if all build dependencies are installed
+2. Verify GBS environment is properly set up
+3. Check for architecture-specific issues
+4. Review build logs for detailed error messages
